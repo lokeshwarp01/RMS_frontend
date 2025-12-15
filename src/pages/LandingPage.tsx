@@ -5,7 +5,6 @@ import {
   Typography,
   Paper,
   Button,
-  Grid,
   CircularProgress,
   List,
   ListItem,
@@ -19,6 +18,7 @@ import {
   Stack,
   LinearProgress,
 } from "@mui/material";
+import Grid from "@mui/material/Grid";
 import {
   AttachFile as AttachFileIcon,
   CheckCircle as CheckCircleIcon,
