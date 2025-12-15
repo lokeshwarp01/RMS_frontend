@@ -5,7 +5,7 @@ import Register from "../pages/Register";
 import Welcome from "../components/Welcome";
 import Settings from "../pages/Settings";
 import Profile from "../pages/Profile";
-import LandingPage from "../pages/Landingpage";
+import LandingPage from "../pages/LandingPage";
 import HistoryPage from "../pages/History";
 
 export const router = createBrowserRouter([
