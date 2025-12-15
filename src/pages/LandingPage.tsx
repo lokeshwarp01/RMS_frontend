@@ -17,7 +17,6 @@ import {
   CardContent,
   Stack,
   LinearProgress,
-  Grid,
 } from "@mui/material";
 import {
   AttachFile as AttachFileIcon,
@@ -298,22 +297,14 @@ const LandingPage: React.FC = () => {
     } catch (err) {}
   };
 
-  // -------------------------
-  // Persist fields on change
-  // -------------------------
   useEffect(() => {
-    // persist attachments meta whenever attachments array changes (including on mount)
     persistAttachmentsMeta(attachments);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments]);
 
   // helpers for UI counts
   const successCount = results.filter((r) => r.status === "success").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
 
-  // -------------------------
-  // Rendering
-  // -------------------------
   return (
     <Box
       sx={{
@@ -346,15 +337,27 @@ const LandingPage: React.FC = () => {
         )}
 
         <Box sx={{ p: 4 }}>
-          <Grid container spacing={4}>
+          {/* Replaced Grid with Box using flexbox */}
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: { xs: "column", lg: "row" },
+              gap: 4,
+            }}
+          >
             {/* LEFT SIDE - Email Composition */}
-            <Grid item xs={12} lg={7}>
+            <Box
+              sx={{
+                flex: { lg: 7 },
+                width: { xs: "100%", lg: "auto" },
+              }}
+            >
               <Card
                 elevation={0}
                 sx={{
                   height: "100%",
                   borderRadius: 3,
-                  width: "800px",
+                  width: { xs: "100%", lg: "800px" },
                   border: "1px solid #e0e0e0",
                   backgroundColor: "#ffffff",
                 }}
@@ -511,17 +514,22 @@ const LandingPage: React.FC = () => {
                   </Stack>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
 
             {/* RIGHT SIDE - Email List & Results */}
-            <Grid item xs={12} lg={5}>
+            <Box
+              sx={{
+                flex: { lg: 5 },
+                width: { xs: "100%", lg: "auto" },
+              }}
+            >
               <Stack spacing={4}>
                 {/* Email List Card */}
                 <Card
                   elevation={0}
                   sx={{
                     borderRadius: 3,
-                    width: "500px",
+                    width: { xs: "100%", lg: "500px" },
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}
@@ -575,7 +583,7 @@ const LandingPage: React.FC = () => {
                   elevation={0}
                   sx={{
                     borderRadius: 3,
-                    width: "500px",
+                    width: { xs: "100%", lg: "500px" },
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}
@@ -655,7 +663,7 @@ const LandingPage: React.FC = () => {
                   elevation={0}
                   sx={{
                     borderRadius: 3,
-                    width: "500px",
+                    width: { xs: "100%", lg: "500px" },
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}
@@ -814,8 +822,8 @@ const LandingPage: React.FC = () => {
                   </CardContent>
                 </Card>
               </Stack>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </Box>
 
         {/* Footer */}
