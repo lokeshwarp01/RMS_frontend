@@ -17,8 +17,8 @@ import {
   CardContent,
   Stack,
   LinearProgress,
+  Grid,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
 import {
   AttachFile as AttachFileIcon,
   CheckCircle as CheckCircleIcon,
@@ -354,7 +354,7 @@ const LandingPage: React.FC = () => {
                 sx={{
                   height: "100%",
                   borderRadius: 3,
-                  width: "700px",
+                  width: "800px",
                   border: "1px solid #e0e0e0",
                   backgroundColor: "#ffffff",
                 }}
@@ -521,6 +521,7 @@ const LandingPage: React.FC = () => {
                   elevation={0}
                   sx={{
                     borderRadius: 3,
+                    width: "500px",
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}
@@ -574,6 +575,7 @@ const LandingPage: React.FC = () => {
                   elevation={0}
                   sx={{
                     borderRadius: 3,
+                    width: "500px",
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}
@@ -653,6 +655,7 @@ const LandingPage: React.FC = () => {
                   elevation={0}
                   sx={{
                     borderRadius: 3,
+                    width: "500px",
                     border: "1px solid #e0e0e0",
                     backgroundColor: "#ffffff",
                   }}

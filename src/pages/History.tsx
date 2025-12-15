@@ -32,7 +32,7 @@ const HistoryPage: React.FC = () => {
         setHistory(response.data.reverse()); // latest first
         setFiltered(response.data.reverse());
       } catch (err) {
-        console.error("Failed to load history");
+        console.error("Failed to load history", err);
       }
       setLoading(false);
     };
