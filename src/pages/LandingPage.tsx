@@ -30,7 +30,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 
-const MAIL_API = "http://localhost:5000/api/mail/send";
+const MAIL_API = "https://rms-backend-1-tsl0.onrender.com/api/mail/send";
 
 /**
  * AttachmentPlaceholder type: used to persist file metadata in sessionStorage.

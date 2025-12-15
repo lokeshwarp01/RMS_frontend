@@ -10,7 +10,7 @@ import {
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:5000/api/user";
+const API_URL = "https://rms-backend-1-tsl0.onrender.com/api/user";
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();

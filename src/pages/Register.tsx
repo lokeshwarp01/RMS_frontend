@@ -3,7 +3,7 @@ import { Box, Button, TextField, Typography, Paper, Link } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/user";
+const API_URL = "https://rms-backend-1-tsl0.onrender.com/api/user";
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
