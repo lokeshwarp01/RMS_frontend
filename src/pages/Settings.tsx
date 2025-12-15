@@ -22,8 +22,6 @@ const Settings: React.FC = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const token = localStorage.getItem("token");
-
   // Fetch user data on page load
   useEffect(() => {
     const fetchSettings = async () => {

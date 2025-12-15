@@ -20,7 +20,7 @@ const Register: React.FC = () => {
     setError("");
 
     try {
-      const response = await axios.post(`${API_URL}/register`, {
+      await axios.post(`${API_URL}/register`, {
         name,
         email,
         password,
