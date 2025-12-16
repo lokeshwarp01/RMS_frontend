@@ -10,7 +10,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
-const API_URL = "https://rms-backend-1-tsl0.onrender.com/api/user";
+const API_URL = "http://localhost:5000/api/user";
 
 const Settings: React.FC = () => {
   const [fromMail, setFromMail] = useState("");

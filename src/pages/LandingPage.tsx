@@ -29,7 +29,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 
-const MAIL_API = "https://rms-backend-1-tsl0.onrender.com/api/mail/send";
+const MAIL_API = "http://localhost:5000/api/mail/send";
 
 /**
  * AttachmentPlaceholder type: used to persist file metadata in sessionStorage.
@@ -297,14 +297,22 @@ const LandingPage: React.FC = () => {
     } catch (err) {}
   };
 
+  // -------------------------
+  // Persist fields on change
+  // -------------------------
   useEffect(() => {
+    // persist attachments meta whenever attachments array changes (including on mount)
     persistAttachmentsMeta(attachments);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments]);
 
   // helpers for UI counts
   const successCount = results.filter((r) => r.status === "success").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
 
+  // -------------------------
+  // Rendering
+  // -------------------------
   return (
     <Box
       sx={{
