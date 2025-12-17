@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   TextField,
@@ -17,6 +17,8 @@ import {
   CardContent,
   Stack,
   LinearProgress,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import {
   AttachFile as AttachFileIcon,
@@ -26,15 +28,13 @@ import {
   Email as EmailIcon,
   Delete as DeleteIcon,
   Upload as UploadIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
 } from "@mui/icons-material";
 import axios from "axios";
 
 const MAIL_API = "http://localhost:5000/api/mail/send";
 
-/**
- * AttachmentPlaceholder type: used to persist file metadata in sessionStorage.
- * Real File objects cannot be re-created by the browser for security reasons.
- */
 type AttachmentPlaceholder = {
   name: string;
   size: number;
@@ -43,11 +43,20 @@ type AttachmentPlaceholder = {
 
 type AttachmentItem = File | AttachmentPlaceholder;
 
+interface EmailResult {
+  email: string;
+  status: string;
+  error?: string;
+  timestamp: Date;
+  batchId?: string; // To track which batch of emails
+}
+
 const STORAGE_KEYS = {
   SUBJECT: "lp_subject",
   BODY: "lp_body",
   EMAILS: "lp_emails",
-  ATTACHMENTS: "lp_attachments_meta", // stored as metadata array
+  ATTACHMENTS: "lp_attachments_meta",
+  RESULTS: "lp_results_history", // Store results history
 };
 
 const LandingPage: React.FC = () => {
@@ -57,18 +66,15 @@ const LandingPage: React.FC = () => {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [sending, setSending] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
-  const [results, setResults] = useState<
-    { email: string; status: string; error?: string }[]
-  >([]);
+  const [results, setResults] = useState<EmailResult[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [errors, setErrors] = useState<{ field: string; message: string }[]>(
     []
   );
 
   const token = sessionStorage.getItem("token");
 
-  // -------------------------
-  // Persistence: load saved values from sessionStorage on mount
-  // -------------------------
+  // Load saved values from sessionStorage
   useEffect(() => {
     try {
       const savedSubject = sessionStorage.getItem(STORAGE_KEYS.SUBJECT);
@@ -77,6 +83,7 @@ const LandingPage: React.FC = () => {
       const savedAttachmentsJson = sessionStorage.getItem(
         STORAGE_KEYS.ATTACHMENTS
       );
+      const savedResultsJson = sessionStorage.getItem(STORAGE_KEYS.RESULTS);
 
       if (savedSubject) setSubject(savedSubject);
       if (savedBody) setBody(savedBody);
@@ -84,18 +91,24 @@ const LandingPage: React.FC = () => {
 
       if (savedAttachmentsJson) {
         const meta: AttachmentPlaceholder[] = JSON.parse(savedAttachmentsJson);
-        // restore as placeholders (cannot recreate File objects)
         setAttachments(meta);
       }
+
+      if (savedResultsJson) {
+        const savedResults: EmailResult[] = JSON.parse(savedResultsJson);
+        // Convert string dates back to Date objects
+        const resultsWithDates = savedResults.map((result) => ({
+          ...result,
+          timestamp: new Date(result.timestamp),
+        }));
+        setResults(resultsWithDates);
+      }
     } catch (err) {
-      // ignore parse errors
       console.warn("Failed to load saved landing page data:", err);
     }
   }, []);
 
-  // -------------------------
-  // Helpers to persist each field
-  // -------------------------
+  // Persistence functions
   const persistSubject = (value: string) => {
     setSubject(value);
     try {
@@ -118,7 +131,6 @@ const LandingPage: React.FC = () => {
   };
 
   const persistAttachmentsMeta = (items: AttachmentItem[]) => {
-    // store only metadata (name + size) because File is not serializable
     const meta = items.map((it) =>
       it instanceof File
         ? { name: it.name, size: it.size, placeholder: true }
@@ -129,14 +141,17 @@ const LandingPage: React.FC = () => {
     } catch (err) {}
   };
 
-  // -------------------------
+  const persistResults = (resultsData: EmailResult[]) => {
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.RESULTS, JSON.stringify(resultsData));
+    } catch (err) {}
+  };
+
   // File handling
-  // -------------------------
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const filesArray = Array.from(e.target.files).slice(0, 5);
 
-    // Validate size limit (10 MB per file)
     const validFiles = filesArray.filter(
       (file) => file.size <= 10 * 1024 * 1024
     );
@@ -147,15 +162,12 @@ const LandingPage: React.FC = () => {
       ]);
     }
 
-    // Merge with existing attachments but keep max 5
-    // If there are placeholder items, we append new File objects after them.
     setAttachments((prev) => {
       const combined = [...prev, ...validFiles].slice(0, 5);
       persistAttachmentsMeta(combined);
       return combined;
     });
 
-    // clear the file input value so same file can be reselected if needed
     e.currentTarget.value = "";
   };
 
@@ -167,9 +179,7 @@ const LandingPage: React.FC = () => {
     });
   };
 
-  // -------------------------
   // Validation
-  // -------------------------
   const validateForm = (): boolean => {
     const newErrors: { field: string; message: string }[] = [];
 
@@ -193,7 +203,6 @@ const LandingPage: React.FC = () => {
       });
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     emailList.forEach((email) => {
       if (!emailRegex.test(email)) {
@@ -204,13 +213,12 @@ const LandingPage: React.FC = () => {
       }
     });
 
-    // If attachment metadata placeholders exist (no real File objects), warn user
     const hasPlaceholders = attachments.some((a) => !(a instanceof File));
     if (hasPlaceholders && attachments.length > 0) {
       newErrors.push({
         field: "attachments",
         message:
-          "Some attachments are placeholders (files were not re-uploaded). Please re-select the files before sending.",
+          "Some attachments are placeholders. Please re-select the files before sending.",
       });
     }
 
@@ -218,16 +226,13 @@ const LandingPage: React.FC = () => {
     return newErrors.length === 0;
   };
 
-  // -------------------------
-  // Sending
-  // -------------------------
+  // Sending emails
   const sendEmail = async (email: string) => {
     const formData = new FormData();
     formData.append("recruiterEmail", email);
     formData.append("subject", subject);
     formData.append("body", body);
 
-    // Append only actual File objects. Placeholders cannot be sent.
     attachments.forEach((att) => {
       if (att instanceof File) formData.append("attachments", att);
     });
@@ -240,12 +245,17 @@ const LandingPage: React.FC = () => {
         },
       });
 
-      return { email, status: "success" };
+      return {
+        email,
+        status: "success",
+        timestamp: new Date(),
+      };
     } catch (err: any) {
       return {
         email,
         status: "failed",
         error: err.response?.data?.error || "Unknown error",
+        timestamp: new Date(),
       };
     }
   };
@@ -259,28 +269,37 @@ const LandingPage: React.FC = () => {
       .filter((e) => e.length > 0);
 
     setErrors([]);
-    setResults([]);
     setSending(true);
     setProgress(0);
 
-    const resultsArr: any[] = [];
+    const resultsArr: EmailResult[] = [];
     const totalEmails = emailList.length;
+    const batchTimestamp = new Date().toISOString();
 
     for (let i = 0; i < emailList.length; i++) {
       const email = emailList[i];
       const result = await sendEmail(email);
-      resultsArr.push(result);
-      setResults([...resultsArr]);
+      const resultWithBatch = { ...result, batchId: batchTimestamp };
+      resultsArr.push(resultWithBatch);
+
+      // Update results immediately for each email
+      setResults((prev) => [...prev, resultWithBatch]);
       setProgress(Math.round(((i + 1) / totalEmails) * 100));
     }
+
+    // Clear email field after sending
+    setEmails("");
+    sessionStorage.removeItem(STORAGE_KEYS.EMAILS);
+
+    // Persist updated results
+    const updatedResults = [...results, ...resultsArr];
+    persistResults(updatedResults);
 
     setSending(false);
     setProgress(0);
   };
 
-  // -------------------------
   // Clear all / reset
-  // -------------------------
   const handleClearAll = () => {
     setSubject("");
     setBody("");
@@ -288,31 +307,45 @@ const LandingPage: React.FC = () => {
     setAttachments([]);
     setResults([]);
     setErrors([]);
+    setSearchQuery("");
 
     try {
       sessionStorage.removeItem(STORAGE_KEYS.SUBJECT);
       sessionStorage.removeItem(STORAGE_KEYS.BODY);
       sessionStorage.removeItem(STORAGE_KEYS.EMAILS);
       sessionStorage.removeItem(STORAGE_KEYS.ATTACHMENTS);
+      sessionStorage.removeItem(STORAGE_KEYS.RESULTS);
     } catch (err) {}
   };
 
-  // -------------------------
-  // Persist fields on change
-  // -------------------------
-  useEffect(() => {
-    // persist attachments meta whenever attachments array changes (including on mount)
-    persistAttachmentsMeta(attachments);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachments]);
+  // Filter results based on search query
+  const filteredResults = useMemo(() => {
+    if (!searchQuery.trim()) return results;
 
-  // helpers for UI counts
+    const query = searchQuery.toLowerCase();
+    return results.filter(
+      (result) =>
+        result.email.toLowerCase().includes(query) ||
+        (result.error && result.error.toLowerCase().includes(query)) ||
+        result.status.toLowerCase().includes(query)
+    );
+  }, [results, searchQuery]);
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
+
+  // Counters
   const successCount = results.filter((r) => r.status === "success").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
+  const filteredSuccessCount = filteredResults.filter(
+    (r) => r.status === "success"
+  ).length;
+  const filteredFailedCount = filteredResults.filter(
+    (r) => r.status === "failed"
+  ).length;
 
-  // -------------------------
-  // Rendering
-  // -------------------------
   return (
     <Box
       sx={{
@@ -331,7 +364,6 @@ const LandingPage: React.FC = () => {
           boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
         }}
       >
-        {/* Header: show validation / attachment placeholder warning */}
         {errors.length > 0 && (
           <Alert
             severity="error"
@@ -345,7 +377,6 @@ const LandingPage: React.FC = () => {
         )}
 
         <Box sx={{ p: 4 }}>
-          {/* Replaced Grid with Box using flexbox */}
           <Box
             sx={{
               display: "flex",
@@ -618,9 +649,7 @@ const LandingPage: React.FC = () => {
                           fontWeight: "bold",
                         }}
                       >
-                        {sending
-                          ? `Sending... ${progress}%`
-                          : "Send All Emails"}
+                        {sending ? `Sending... ${progress}%` : "Send"}
                       </Button>
 
                       <Button
@@ -696,7 +725,7 @@ const LandingPage: React.FC = () => {
                         <Box sx={{ display: "flex", gap: 2 }}>
                           <Chip
                             icon={<CheckCircleIcon />}
-                            label={`${successCount} Sent`}
+                            label={`${successCount} Total Sent`}
                             color="success"
                             size="medium"
                             variant="outlined"
@@ -707,7 +736,7 @@ const LandingPage: React.FC = () => {
                           />
                           <Chip
                             icon={<ErrorIcon />}
-                            label={`${failedCount} Failed`}
+                            label={`${failedCount} Total Failed`}
                             color="error"
                             size="medium"
                             variant="outlined"
@@ -720,7 +749,33 @@ const LandingPage: React.FC = () => {
                       )}
                     </Box>
 
-                    {results.length === 0 ? (
+                    {/* Search Bar */}
+                    {results.length > 0 && (
+                      <TextField
+                        fullWidth
+                        variant="outlined"
+                        placeholder="Search emails, status, or error messages..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        sx={{ mb: 3 }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchIcon />
+                            </InputAdornment>
+                          ),
+                          endAdornment: searchQuery && (
+                            <InputAdornment position="end">
+                              <IconButton onClick={clearSearch} size="small">
+                                <ClearIcon />
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+
+                    {filteredResults.length === 0 ? (
                       <Box
                         sx={{
                           textAlign: "center",
@@ -737,95 +792,145 @@ const LandingPage: React.FC = () => {
                           color="textSecondary"
                           sx={{ mb: 1 }}
                         >
-                          No emails sent yet
+                          {searchQuery
+                            ? "No matching results"
+                            : "No emails sent yet"}
                         </Typography>
                         <Typography variant="body1" color="textSecondary">
-                          Fill in the form and click "Send All Emails"
+                          {searchQuery
+                            ? "Try a different search term"
+                            : "Fill in the form and click 'Send All Emails'"}
                         </Typography>
                       </Box>
                     ) : (
-                      <Box
-                        sx={{
-                          maxHeight: 400,
-                          overflow: "auto",
-                          border: "1px solid #e0e0e0",
-                          borderRadius: 2,
-                          p: 1,
-                        }}
-                      >
-                        <List>
-                          {results.map((r, index) => (
-                            <React.Fragment key={index}>
-                              <ListItem
-                                sx={{
-                                  bgcolor:
-                                    r.status === "success"
-                                      ? "success.50"
-                                      : "error.50",
-                                  borderRadius: 1.5,
-                                  mb: 1.5,
-                                  py: 2,
-                                  px: 2,
-                                }}
+                      <>
+                        {searchQuery && (
+                          <Box
+                            sx={{
+                              mb: 2,
+                              display: "flex",
+                              gap: 2,
+                              justifyContent: "flex-end",
+                            }}
+                          >
+                            <Chip
+                              label={`${filteredSuccessCount} sent in search`}
+                              color="success"
+                              size="small"
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={`${filteredFailedCount} failed in search`}
+                              color="error"
+                              size="small"
+                              variant="outlined"
+                            />
+                            <Typography variant="body2" color="textSecondary">
+                              Showing {filteredResults.length} of{" "}
+                              {results.length} results
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box
+                          sx={{
+                            maxHeight: 400,
+                            overflow: "auto",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: 2,
+                            p: 1,
+                          }}
+                        >
+                          <List>
+                            {filteredResults.map((r, index) => (
+                              <React.Fragment
+                                key={`${
+                                  r.email
+                                }-${r.timestamp.getTime()}-${index}`}
                               >
-                                <ListItemIcon sx={{ minWidth: 48 }}>
-                                  {r.status === "success" ? (
-                                    <CheckCircleIcon
-                                      color="success"
-                                      sx={{ fontSize: 28 }}
-                                    />
-                                  ) : (
-                                    <ErrorIcon
-                                      color="error"
-                                      sx={{ fontSize: 28 }}
-                                    />
-                                  )}
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={
-                                    <Typography
-                                      variant="h6"
-                                      fontWeight="medium"
-                                      sx={{ mb: 0.5 }}
-                                    >
-                                      {r.email}
-                                    </Typography>
-                                  }
-                                  secondary={
-                                    r.error && (
-                                      <Typography
-                                        variant="body2"
-                                        color="error"
-                                        sx={{ mt: 0.5 }}
-                                      >
-                                        {r.error}
-                                      </Typography>
-                                    )
-                                  }
-                                />
-                                <Chip
-                                  label={
-                                    r.status === "success"
-                                      ? "Success"
-                                      : "Failed"
-                                  }
-                                  size="medium"
-                                  color={
-                                    r.status === "success" ? "success" : "error"
-                                  }
-                                  variant="filled"
+                                <ListItem
                                   sx={{
-                                    fontWeight: "bold",
-                                    fontSize: "0.9rem",
+                                    bgcolor:
+                                      r.status === "success"
+                                        ? "success.50"
+                                        : "error.50",
+                                    borderRadius: 1.5,
+                                    mb: 1.5,
+                                    py: 2,
                                     px: 2,
                                   }}
-                                />
-                              </ListItem>
-                              {index < results.length - 1 && <Divider />}
-                            </React.Fragment>
-                          ))}
-                        </List>
-                      </Box>
+                                >
+                                  <ListItemIcon sx={{ minWidth: 48 }}>
+                                    {r.status === "success" ? (
+                                      <CheckCircleIcon
+                                        color="success"
+                                        sx={{ fontSize: 28 }}
+                                      />
+                                    ) : (
+                                      <ErrorIcon
+                                        color="error"
+                                        sx={{ fontSize: 28 }}
+                                      />
+                                    )}
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={
+                                      <Typography
+                                        variant="h6"
+                                        fontWeight="medium"
+                                        sx={{ mb: 0.5 }}
+                                      >
+                                        {r.email}
+                                      </Typography>
+                                    }
+                                    secondary={
+                                      <>
+                                        {r.error && (
+                                          <Typography
+                                            variant="body2"
+                                            color="error"
+                                            sx={{ mt: 0.5 }}
+                                          >
+                                            {r.error}
+                                          </Typography>
+                                        )}
+                                        <Typography
+                                          variant="caption"
+                                          color="textSecondary"
+                                          sx={{ display: "block", mt: 0.5 }}
+                                        >
+                                          {r.timestamp.toLocaleString()}
+                                        </Typography>
+                                      </>
+                                    }
+                                  />
+                                  <Chip
+                                    label={
+                                      r.status === "success"
+                                        ? "Success"
+                                        : "Failed"
+                                    }
+                                    size="medium"
+                                    color={
+                                      r.status === "success"
+                                        ? "success"
+                                        : "error"
+                                    }
+                                    variant="filled"
+                                    sx={{
+                                      fontWeight: "bold",
+                                      fontSize: "0.9rem",
+                                      px: 2,
+                                    }}
+                                  />
+                                </ListItem>
+                                {index < filteredResults.length - 1 && (
+                                  <Divider />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </List>
+                        </Box>
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -844,9 +949,15 @@ const LandingPage: React.FC = () => {
           }}
         >
           <Typography variant="h6">
-            Total emails sent: <strong>{successCount}</strong> • Failed:{" "}
+            Total emails sent: <strong>{successCount}</strong> • Total failed:{" "}
             <strong>{failedCount}</strong>
           </Typography>
+          {results.length > 0 && (
+            <Typography variant="body2" sx={{ mt: 1, opacity: 0.9 }}>
+              Last email sent:{" "}
+              {results[results.length - 1]?.timestamp.toLocaleString()}
+            </Typography>
+          )}
         </Box>
       </Paper>
     </Box>
